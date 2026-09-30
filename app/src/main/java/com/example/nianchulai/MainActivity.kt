@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
@@ -203,6 +204,7 @@ private fun ReadingScreen(
     var editingId by remember { mutableStateOf<String?>(null) }
     var sentenceFontSize by remember { mutableIntStateOf(store.sentenceFontSize) }
     var followingSentence by remember { mutableStateOf(true) }
+    var showReadingSettings by rememberSaveable { mutableStateOf(false) }
     var showSaveDialog by rememberSaveable { mutableStateOf(false) }
     var newTitle by rememberSaveable { mutableStateOf("") }
     var showArticleForm by remember { mutableStateOf(false) }
@@ -215,7 +217,6 @@ private fun ReadingScreen(
     val inPlaylist = active && ReadingSession.playlistArticleId != null
     val effectiveSpeed = if (active) reader.readingSpeed else speed
     val effectiveMode = if (active) reader.readingMode else mode
-    val bookmark = if (!active) store.bookmark() else null
     val displayedArticle = if (inPlaylist) reader.readingText else article
     val sentences = remember(displayedArticle) { sentencesForReading(displayedArticle) }
     val sentenceListState = rememberLazyListState()
@@ -269,6 +270,15 @@ private fun ReadingScreen(
         val savedId = savedArticleForReading(id, text, saved)?.id
         followingSentence = true
         play(text, rate, position, readingMode, savedId)
+    }
+
+    fun toggleReading() {
+        when (reader.status) {
+            ReaderStatus.PLAYING -> control(ReadingService.PAUSE)
+            ReaderStatus.PAUSED -> control(ReadingService.RESUME)
+            ReaderStatus.READY -> if (sentences.isNotEmpty()) readArticle(displayedArticle, speed, 0, mode)
+            else -> Unit
+        }
     }
 
     fun toggleArticle(item: SavedArticle, playlist: Boolean) {
@@ -399,8 +409,15 @@ private fun ReadingScreen(
         } else if (page == 1) {
             Column(modifier = Modifier.weight(1f).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                PageHeading("逐句朗讀")
-                CompactReadingSettings(effectiveMode, effectiveSpeed, ::selectReadingSettings)
+                PageHeading("逐句朗讀") {
+                    IconButton(onClick = { showReadingSettings = !showReadingSettings }) {
+                        Icon(Icons.Default.MoreVert,
+                            contentDescription = if (showReadingSettings) "隱藏朗讀設定" else "顯示朗讀設定")
+                    }
+                }
+                if (showReadingSettings) {
+                    CompactReadingSettings(effectiveMode, effectiveSpeed, ::selectReadingSettings)
+                }
                 if (inPlaylist) Text("播放清單：${ReadingSession.currentTitle}",
                     style = MaterialTheme.typography.titleMedium)
                 Text(reader.message, style = MaterialTheme.typography.bodyMedium)
@@ -414,14 +431,8 @@ private fun ReadingScreen(
                     OutlinedButton(onClick = { followingSentence = true; control(ReadingService.NEXT) },
                         modifier = Modifier.weight(1.15f), contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = active && reader.currentSentenceIndex < reader.sentenceCount - 1) { Text("下一句") }
-                    Button(onClick = {
-                        when (reader.status) {
-                            ReaderStatus.PLAYING -> control(ReadingService.PAUSE)
-                            ReaderStatus.PAUSED -> control(ReadingService.RESUME)
-                            ReaderStatus.READY -> readArticle(displayedArticle, speed, 0, mode)
-                            else -> Unit
-                        }
-                    }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp),
+                    Button(onClick = ::toggleReading,
+                        modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = active || (reader.status == ReaderStatus.READY && sentences.isNotEmpty())) {
                         Text(when (reader.status) {
                             ReaderStatus.PLAYING -> "暫停"
@@ -477,34 +488,34 @@ private fun ReadingScreen(
         }
         if (inPlaylist) Text("播放清單：${ReadingSession.currentTitle}",
             style = MaterialTheme.typography.titleMedium)
-        else Text("貼上文章或從其他 App 分享文字，離線朗讀。")
+        else Text("貼上文章或從其他 App 分享文字。")
         if (inPlaylist) {
             OutlinedTextField(value = displayedArticle, onValueChange = {}, readOnly = true,
-                label = { Text("目前播放的文章") }, modifier = Modifier.fillMaxWidth().height(200.dp))
+                label = { Text("目前播放的文章") }, modifier = Modifier.fillMaxWidth().height(400.dp))
         } else {
         OutlinedTextField(
             value = article,
             onValueChange = ::updateArticle,
             label = { Text("文章內容") },
             placeholder = { Text("在這裡輸入或貼上文章…") },
-            modifier = Modifier.fillMaxWidth().height(280.dp),
+            modifier = Modifier.fillMaxWidth().height(400.dp),
             minLines = 8
         )
-        OutlinedButton(onClick = ::saveNewArticle, enabled = article.isNotBlank()) {
-            Text("儲存為新文章")
         }
-        }
-        if (!active && bookmark != null && reader.status == ReaderStatus.READY) {
-            OutlinedButton(onClick = {
-                val last = store.bookmark() ?: return@OutlinedButton
-                article = last.text
-                store.draft = last.text
-                editingId = null
-                speed = last.speed
-                mode = last.mode
-                store.mode = last.mode
-                readArticle(last.text, last.speed, last.position, last.mode, last.articleId)
-            }) { Text("從上次進度繼續") }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!inPlaylist) {
+                OutlinedButton(onClick = ::saveNewArticle, enabled = article.isNotBlank()) {
+                    Text("儲存為新文章")
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Button(onClick = {
+                if (reader.status != ReaderStatus.PLAYING) toggleReading()
+                page = 1
+            }, enabled = active || (reader.status == ReaderStatus.READY && sentences.isNotEmpty())) {
+                Text("朗讀")
+            }
         }
         }
         2 -> {
@@ -552,7 +563,6 @@ private fun ReadingScreen(
         }
         else -> {
             PageHeading("播放清單")
-            Text("從文章庫加入文章，依下方順序連續朗讀。")
             val queue = playlistIds.mapNotNull { id -> saved.firstOrNull { it.id == id } }
             if (queue.isEmpty()) Text("播放清單尚無文章，請到文章庫使用加入清單圖示。")
             if (ReadingSession.playlistArticleId != null) {
@@ -601,24 +611,14 @@ private fun ReadingScreen(
         }
         NavigationBar {
             listOf("朗讀", "逐句", "文章庫", "播放清單").forEachIndexed { index, label ->
-                val stopping = index == 0 && page == 0 && active
                 NavigationBarItem(selected = page == index, onClick = {
-                    if (index == 0 && page == 0) {
-                        if (active) {
-                            if (inPlaylist) {
-                                article = reader.readingText
-                                store.draft = article
-                                editingId = ReadingSession.playlistArticleId
-                            }
-                            control(ReadingService.STOP)
-                        }
-                        else if (reader.status == ReaderStatus.READY && article.isNotBlank()) readArticle(article, speed, 0, mode)
-                    } else page = index
+                    if (index == 1 && page == 1) toggleReading()
+                    else page = index
                 }, colors = NavigationBarItemDefaults.colors(
                     indicatorColor = MaterialTheme.colorScheme.primary,
                     selectedIconColor = MaterialTheme.colorScheme.onPrimary),
-                    icon = { Text(if (stopping) "■" else listOf("▶", "☷", "▤", "♫")[index]) },
-                    label = { Text(if (stopping) "停止" else label,
+                    icon = { Text(listOf("▶", "☷", "▤", "♫")[index]) },
+                    label = { Text(label,
                         fontWeight = if (page == index) FontWeight.Bold else FontWeight.Normal) })
             }
         }

@@ -1,6 +1,6 @@
 # 貢獻指南
 
-歡迎透過 GitHub Issue 回報問題，或提交 Pull Request 改善「mini說書」。請以繁體中文撰寫使用者文件與介面文字，程式碼沿用專案既有的 Kotlin 命名方式。
+歡迎透過 GitHub Issue 回報問題，或提交 Pull Request 改善「mini說書人」。請以繁體中文撰寫使用者文件與介面文字，程式碼沿用專案既有的 Kotlin 命名方式。
 
 ## 建議流程
 

@@ -1,6 +1,6 @@
 # 文件索引
 
-本目錄記錄「mini說書」的使用方式、系統結構與設計決策。第一次使用建議先讀[使用指南](USER_GUIDE.md)；若要開發或維護，依序閱讀[系統架構](ARCHITECTURE.md)、[系統設計](SYSTEM_DESIGN.md)及[開發與測試](DEVELOPMENT.md)。
+本目錄記錄「mini說書人」的使用方式、系統結構與設計決策。第一次使用建議先讀[使用指南](USER_GUIDE.md)；若要開發或維護，依序閱讀[系統架構](ARCHITECTURE.md)、[系統設計](SYSTEM_DESIGN.md)及[開發與測試](DEVELOPMENT.md)。
 
 - [使用指南](USER_GUIDE.md)：各分頁操作、分享與檔案匯入、朗讀進度、語音資料與疑難排解。
 - [系統架構與技術文件](ARCHITECTURE.md)：元件職責、事件與資料流、儲存格式、權限及外部依賴。
