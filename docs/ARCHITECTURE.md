@@ -38,13 +38,16 @@
 - **`ArticleStore.kt`**：讀寫草稿、語言、語速、逐句字體、文章 JSON、播放清單 ID、單篇書籤與清單進度。更名與修改保留文章 ID。
 - **`TextFileImport.kt`**：檢查檔名、2 MB 上限與文字內容；UTF-8（含 BOM）以 `CodingErrorAction.REPORT` 嚴格解碼，失敗時不寫入草稿。
 - **`PlaybackDecisions.kt`**：不依賴 Android UI 的句尾停止與清單選篇判斷，便於單元測試。
+- **`CompactReadingSettings.kt`／`ArticleComponents.kt`**：逐句頁精簡語言／語速控制、共用標題與庫內文章表單；表單的編輯資料獨立於朗讀草稿。
 
 ## 主要資料流
 
 1. **單篇朗讀**：文章輸入或匯入 → `ArticleStore.draft` → Activity 發送 `START`（語速、模式、句子索引）→ Service 讀取草稿 → Reader 分句／分片段 → Android TTS → 回呼更新畫面及書籤。
 2. **播放清單**：`SavedArticle.id` 清單 → `START_PLAYLIST` → Service 依文章 ID 從 ArticleStore 載入文字 → Reader 完成一篇後 Service 啟動下一篇；每個句子變動都更新 `PlaylistProgress(articleId, sentence, speed, mode)`。
 3. **睡眠計時**：Service 設定主執行緒定時任務；到時若播放中，Reader 完成同一句剩餘的中英片段後停止並將續讀位置指向下一句（若文章已結束，指向清單下一篇）。暫停中到時則立即停止。
-4. **分享／匯入**：分享文字直接取代草稿；匯入從檔案 URI 讀取後先顯示預覽，使用者確認才寫入草稿。兩者都不會自動寫入文章庫。
+4. **分享／匯入**：分享文字直接取代草稿；TXT 匯入入口集中在文章庫，帶入獨立表單，使用者填寫標題後儲存為新文章，不影響草稿或播放。
+5. **即時設定**：逐句頁發送 `UPDATE_SETTINGS` → Reader 先驗證語音可用性，再更新速度或重分目前句片段；不重建播放工作，保留清單索引、暫停狀態與計時器，成功後保存偏好及續讀設定。
+6. **文章播放操作**：依文章 ID 與 Reader 狀態決定 `START`／`PAUSE`／`RESUME`；圖示與點擊操作共用判斷。正在播放或暫停的文章可在兩個列表直接控制，僅新播放項目切到逐句頁。
 
 ## 資料、生命週期與權限
 

@@ -8,6 +8,7 @@ import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
 
 internal enum class ReaderStatus { LOADING, READY, PLAYING, PAUSED, ERROR }
@@ -28,7 +29,7 @@ internal class Reader(context: Context) {
         private set
     val sentencePosition: Int get() = currentSentenceIndex
     val readingSpeed: Float get() = speed
-    var readingMode: ReadingMode = ReadingMode.CHINESE
+    var readingMode by mutableStateOf(ReadingMode.CHINESE)
         private set
 
     private val handler = Handler(Looper.getMainLooper())
@@ -39,7 +40,7 @@ internal class Reader(context: Context) {
     private var sentences = emptyList<ReadingSentence>()
     private var position = 0
     private var generation = 0
-    private var speed = 1f
+    private var speed by mutableFloatStateOf(1f)
     private var stopAfterSentence = false
     private var closed = false
 
@@ -91,7 +92,7 @@ internal class Reader(context: Context) {
         readingText = article
         sentenceCount = sentences.size
         val target = fromSentence.coerceIn(0, sentenceCount - 1)
-        position = segments.indexOfFirst { it.sentenceIndex >= target }.coerceAtLeast(0)
+        position = segmentIndexForSentence(segments, target)
         status = ReaderStatus.PLAYING
         speakNext()
     }
@@ -115,6 +116,30 @@ internal class Reader(context: Context) {
 
     fun finishCurrentSentenceThenStop() {
         if (status == ReaderStatus.PLAYING) stopAfterSentence = true
+    }
+
+    /** Updates the existing session without resetting the queue, timer or pause state. */
+    fun updateSettings(rate: Float, mode: ReadingMode): String? {
+        if (status != ReaderStatus.PLAYING && status != ReaderStatus.PAUSED) return null
+        val changedMode = mode != readingMode
+        val nextSegments = if (changedMode) splitForReading(readingText, mode) else segments
+        if (nextSegments.any { it.language == Language.ENGLISH } && englishVoice == null) {
+            return "找不到英文的離線語音。請到系統文字轉語音設定下載英文語音資料，然後重新開啟 App。原播放設定已保留。"
+        }
+        speed = rate.coerceIn(0.5f, 1.5f)
+        if (changedMode) {
+            generation++
+            engine?.stop()
+            readingMode = mode
+            segments = nextSegments
+            position = segmentIndexForSentence(segments, currentSentenceIndex)
+            if (status == ReaderStatus.PLAYING) speakNext() else onChanged?.invoke()
+        } else onChanged?.invoke()
+        return null
+    }
+
+    fun cancelSentenceStop() {
+        stopAfterSentence = false
     }
 
     fun pause() {

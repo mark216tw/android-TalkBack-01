@@ -6,8 +6,12 @@ import org.json.JSONObject
 import java.util.UUID
 
 internal data class SavedArticle(val id: String, val title: String, val text: String)
-internal data class ReadingBookmark(val text: String, val position: Int, val speed: Float, val mode: ReadingMode)
+internal data class ReadingBookmark(val text: String, val position: Int, val speed: Float, val mode: ReadingMode,
+                                    val articleId: String? = null)
 internal data class PlaylistProgress(val articleId: String, val sentence: Int, val speed: Float, val mode: ReadingMode)
+
+internal fun defaultArticleTitle(text: String): String =
+    text.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(35) ?: "未命名文章"
 
 internal class ArticleStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("articles", Context.MODE_PRIVATE)
@@ -37,9 +41,10 @@ internal class ArticleStore(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    fun save(text: String): SavedArticle {
-        val title = text.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(35) ?: "未命名文章"
-        val item = SavedArticle(UUID.randomUUID().toString(), title, text)
+    fun save(text: String, title: String = defaultArticleTitle(text)): SavedArticle {
+        require(title.isNotBlank()) { "文章標題不得空白" }
+        require(text.isNotBlank()) { "文章內容不得空白" }
+        val item = SavedArticle(UUID.randomUUID().toString(), title.trim(), text)
         writeArticles(listOf(item) + articles())
         return item
     }
@@ -51,8 +56,10 @@ internal class ArticleStore(context: Context) {
     }
 
     fun update(id: String, title: String, text: String) {
+        require(title.isNotBlank()) { "文章標題不得空白" }
+        require(text.isNotBlank()) { "文章內容不得空白" }
         writeArticles(articles().map { item ->
-            if (item.id == id) item.copy(title = title.trim().ifBlank { "未命名文章" }, text = text)
+            if (item.id == id) item.copy(title = title.trim(), text = text)
             else item
         })
     }
@@ -108,16 +115,18 @@ internal class ArticleStore(context: Context) {
         } ?: ReadingMode.MIXED // Bookmarks created before this option used mixed reading.
         val position = if (prefs.contains("bookmark_sentence")) prefs.getInt("bookmark_sentence", 0)
             else splitForReading(text, mode).getOrNull(prefs.getInt("bookmark_position", 0))?.sentenceIndex ?: 0
-        return ReadingBookmark(text, position, prefs.getFloat("bookmark_speed", 1f), mode)
+        return ReadingBookmark(text, position, prefs.getFloat("bookmark_speed", 1f), mode,
+            prefs.getString("bookmark_article", null))
     }
 
-    fun setBookmark(text: String, position: Int, speed: Float, mode: ReadingMode) {
+    fun setBookmark(text: String, position: Int, speed: Float, mode: ReadingMode, articleId: String? = null) {
         prefs.edit().putString("bookmark_text", text).putInt("bookmark_sentence", position)
-            .putFloat("bookmark_speed", speed).putString("bookmark_mode", mode.name).apply()
+            .putFloat("bookmark_speed", speed).putString("bookmark_mode", mode.name)
+            .putString("bookmark_article", articleId).apply()
     }
 
     fun clearBookmark() {
         prefs.edit().remove("bookmark_text").remove("bookmark_position").remove("bookmark_speed")
-            .remove("bookmark_mode").remove("bookmark_sentence").apply()
+            .remove("bookmark_mode").remove("bookmark_sentence").remove("bookmark_article").apply()
     }
 }
